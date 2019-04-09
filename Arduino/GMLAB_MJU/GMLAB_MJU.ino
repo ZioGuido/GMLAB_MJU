@@ -2,7 +2,7 @@
 // GMLAB MJU - Midi Jack USB
 // Basic firmware by Guido Scognamiglio
 // Visit: www.gmlab.it - www.GenuineSoundware.com
-// Last update: March 2019
+// Last update: April 2019
 //
 
 // HOW TO USE:
@@ -567,14 +567,16 @@ void setup()
   PageTimer.expiredHandler(SetPageValue);
 
   // Setup MIDI
-  MIDI.begin(MIDI_CHANNEL_OMNI);
   MIDI.turnThruOn(); // The MIDI input isn't used in this project...
+  MIDI.begin(MIDI_CHANNEL_OMNI);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // The main running loop
 void loop() 
 {
+  MIDI.read();
+  
   // Read TRS input
   ReadTRS();
 
