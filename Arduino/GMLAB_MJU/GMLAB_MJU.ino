@@ -2,7 +2,7 @@
 // GMLAB MJU - Midi Jack USB
 // Basic firmware by Guido Scognamiglio
 // Visit: www.gmlab.it - www.GenuineSoundware.com
-// Last update: April 2019
+// Last update: March 2019
 //
 
 // HOW TO USE:
@@ -541,7 +541,7 @@ void setup()
 
   // These checks are actually needed in case the EEPROM is empty
   if (JackType >= e_JackType_MAX) JackType = 0;
-  if (MidiType > MidiType_MAX) MidiType > MidiType_MAX;
+  if (MidiType > MidiType_MAX) MidiType = MidiType_MAX;
   if (MidiChan > 15) MidiChan = 0;
   if (MidiWhat > 127) MidiWhat = 0;
   
