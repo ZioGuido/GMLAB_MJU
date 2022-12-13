@@ -3,10 +3,10 @@
 #define __VELOCITY_SCALE_
 
 
-// Mojo61 v.1.2
+// Mojo61 v.1.51
 const unsigned char VelocityScale[128] =
 {
-	0, 	// 0
+	1, 	// 0
 	1, 	// 1
 	1, 	// 2
 	1, 	// 3
