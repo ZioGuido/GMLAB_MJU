@@ -5,7 +5,7 @@
 //
 // Firmware by Guido Scognamiglio
 // Visit: www.gmlab.it
-// Last update: December 2022
+// Last update: January 2023
 //
 
 // HOW TO USE:
@@ -13,9 +13,6 @@
 // Press the lower button to select value
 // Current status is automatically remembered
 
-
-// Uncomment this line to compile with USB MIDI
-#define USBMIDI 1
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // PIN DEFINITIONS (DO NOT CHANGE!)
@@ -43,11 +40,8 @@
 #include <MIDI.h>
 MIDI_CREATE_DEFAULT_INSTANCE();
 
-// Remember that if this project is compiled with USB MIDI, the Arduino IDE won't be able 
-// to "see" the board during the upload of the sketch until the RESET button is pressed.
-#ifdef USBMIDI
-#include <MIDIUSB.h>
-#endif
+#include <USB-MIDI.h>
+USBMIDI_CREATE_INSTANCE(0, USB_MIDI);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // This library creates a timer with millisecond precision
@@ -495,40 +489,19 @@ void SendMidiMessage(int MidiValue)
 	{
 	case 0: // Send Control Change
 		MIDI.sendControlChange(MidiWhat, MidiValue, MidiChan + 1);
+		USB_MIDI.sendControlChange(MidiWhat, MidiValue, MidiChan + 1);
 		break;
 
 	case 1: // Send Program Change
 		MIDI.sendProgramChange(MidiValue, MidiChan + 1);
+		USB_MIDI.sendProgramChange(MidiValue, MidiChan + 1);
 		break;
 
 	case 2: // Send Note On
 		MIDI.sendNoteOn(MidiWhat, MidiValue, MidiChan + 1);
+		USB_MIDI.sendNoteOn(MidiWhat, MidiValue, MidiChan + 1);
 		break;
 	}
-
-#ifdef USBMIDI
-	midiEventPacket_t Event;
-	switch (MidiType)
-	{
-	case 0: // Send Control Change
-		Event = { 0x0B, 0xB0 | MidiChan, MidiWhat, MidiValue };
-		MidiUSB.sendMIDI(Event);
-		MidiUSB.flush();
-		break;
-
-	case 1: // Send Program Change
-		Event = { 0x0C, 0xC0 | MidiChan, MidiValue, 0 };
-		MidiUSB.sendMIDI(Event);
-		MidiUSB.flush();
-		break;
-
-	case 2: // Send Note On
-		Event = { 0x09, 0x90 | MidiChan, MidiWhat, MidiValue };
-		MidiUSB.sendMIDI(Event);
-		MidiUSB.flush();
-		break;
-	}
-#endif
 
 	// Monitor MidiValue
 	if (MenuPage == 6) // Was page 4 in the original firmware
@@ -544,30 +517,14 @@ void SendNoteMessage(int byte1, int note, int velocity)
 	{
 	case 0x90: // Note ON
 		MIDI.sendNoteOn(note, velocity, chn + 1);
+		USB_MIDI.sendNoteOn(note, velocity, chn + 1);
 		break;
 
 	case 0x80: // Note OFF
 		MIDI.sendNoteOff(note, velocity, chn + 1);
+		USB_MIDI.sendNoteOff(note, velocity, chn + 1);
 		break;
 	}
-
-#ifdef USBMIDI
-	midiEventPacket_t Event;
-	switch (status)
-	{
-	case 0x90: // Note ON
-		Event = { 0x09, byte1, note, velocity };
-		MidiUSB.sendMIDI(Event);
-		MidiUSB.flush();
-		break;
-
-	case 0x80: // Note OFF
-		Event = { 0x08, byte1, note, velocity };
-		MidiUSB.sendMIDI(Event);
-		MidiUSB.flush();
-		break;
-	}
-#endif
 }
 
 /*  Here is a little secret: the scan board of the Mojo (also used in all Mojo models and in the GSi DMC-122)
@@ -662,8 +619,8 @@ void ProcessMojoScanboard(int chan, int note, int velocity)
 		break;
 
 	case kStatusVelON: // Second contact, velocity
-		// Send if velocity feature is ON
-		if (MidiTxVelocity == 1)
+		// Send if velocity feature is ON // Added 18-Mar-2024: Only if a Note-On message wasn't already sent!
+		if (MidiTxVelocity == 1 && NoteMem[note].TxStatus == 0)
 		{
 			SendNoteMessage(0x90 | NoteMem[note].TxChan, NoteMem[note].NoteNum, velocity);
 			NoteMem[note].TxStatus = 1;
@@ -750,6 +707,8 @@ void setup()
 	// Setup MIDI
 	MIDI.begin(MIDI_CHANNEL_OMNI);
 	MIDI.turnThruOff();
+	USB_MIDI.begin(MIDI_CHANNEL_OMNI);
+	USB_MIDI.turnThruOff();
 	Transpose = 0; // Always start with Transpose = 0
 	// Reset note memory and velocity-off array
 	for (int n = 0; n < 128; ++n)
@@ -773,6 +732,9 @@ void loop()
 			// NOTE to self: remember that this MIDI library uses actual channel numbers 1~16 !!!
 			ProcessMojoScanboard(MIDI.getChannel() - 1, MIDI.getData1(), MIDI.getData2());
 	}
+
+	USB_MIDI.read();
+
 
 	// Read TRS input
 	ReadTRS();
