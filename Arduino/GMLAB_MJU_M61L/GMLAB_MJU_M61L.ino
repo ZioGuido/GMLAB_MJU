@@ -5,7 +5,7 @@
 //
 // Firmware by Guido Scognamiglio
 // Visit: www.gmlab.it
-// Last update: January 2023
+// Last update: March 2024
 //
 
 // HOW TO USE:
