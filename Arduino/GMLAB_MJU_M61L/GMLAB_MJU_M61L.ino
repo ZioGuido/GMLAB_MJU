@@ -5,11 +5,11 @@
 //
 // Firmware by Guido Scognamiglio
 // Visit: www.gmlab.it
-// Last update: March 2024
+// Last update: April 2026
 //
 
 // HOW TO USE:
-// Press the upper button to select page (Jack Type, Midi Type, Midi Channel, Midi Number, Velocity, Transpose, Monitor)
+// Press the upper button to select page (Jack Type, Midi Type, Midi Channel, Midi Number, Range Min, Range Max, Velocity, Transpose, Monitor)
 // Press the lower button to select value
 // Current status is automatically remembered
 
@@ -69,6 +69,8 @@ int JackType = 0;
 int MidiType = 0;
 int MidiChan = 0;
 int MidiWhat = 0;
+int MidiMin = 0;
+int MidiMax = 127;
 int PrevMidiValue = -1;
 #define MidiType_MAX 2
 
@@ -93,6 +95,8 @@ enum EEPROM_MemoryLocations
 	EE_LOC_MidiType,
 	EE_LOC_MidiChan,
 	EE_LOC_MidiWhat,
+	EE_LOC_MidiMin,
+	EE_LOC_MidiMax,
 
 	EE_LOC_Velocity, // Added for the Mojo scanboard modified firmware
 };
@@ -112,7 +116,7 @@ enum JackTypesEnum
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Display strings
-const char MenuPages[][4] = { "TRS", "TYP", "CHN", "NUM", "VEL", "TSP", "MON" };
+const char MenuPages[][4] = { "TRS", "TYP", "CHN", "NUM", "MIN", "MAX", "VEL", "TSP", "MON" };
 const char JackTypes[][4] = { "EP1", "EP2", "HMC", "HMH", "SPP", "SPN" };
 const char MidiTypes[][4] = { " CC", " PC", "NOT" }; // Control Change, Program Change, Note Event
 
@@ -163,7 +167,7 @@ const unsigned char alphabet[] =
   0b001111100,  // U
   0b000111000,  // V
   0b000000000,  // W (null)
-  0b000000000,  // X (null)
+  0b001101110,  // X
   0b001110110,  // Y
   0b001001010,  // Z
 };
@@ -277,13 +281,22 @@ void SetPageValue()
 			EEPROM.write(EE_LOC_MidiWhat, MidiWhat);
 			break;
 
-		case 4: // Velocity on or off
-			//MidiTxVelocity = !MidiTxVelocity;
+		case 4: // Range Min
+			if (++MidiMin > 127) MidiMin = 0;
+			EEPROM.update(EE_LOC_MidiMin, MidiMin);
+			break;
+
+		case 5: // Range Max
+			if (++MidiMax > 127) MidiMax = 0;
+			EEPROM.update(EE_LOC_MidiMax, MidiMax);
+			break;
+
+		case 6: // Velocity on or off
 			if (++MidiTxVelocity > 1) MidiTxVelocity = 0;
 			EEPROM.write(EE_LOC_Velocity, MidiTxVelocity);
 			break;
 
-		case 5: // Transpose (not stored into EEPROM)
+		case 7: // Transpose (not stored into EEPROM)
 			if (++Transpose > 12) Transpose = -12;
 			break;
 		}
@@ -308,11 +321,19 @@ void SetPageValue()
 		DisplayNumber(MidiWhat);
 		break;
 
-	case 4: // Velocity
+	case 4: // Midi Min
+		DisplayNumber(MidiMin);
+		break;
+
+	case 5: // Midi Max
+		DisplayNumber(MidiMax);
+		break;
+
+	case 6: // Velocity
 		memcpy(DisplayText, MidiTxVelocity > 0 ? " ON" : "OFF", 3);
 		break;
 
-	case 5: // Transpose
+	case 7: // Transpose
 		// Ouch! This is though!... In order to display this correctly, we must show this as a text
 		sprintf(DisplayText, "%s%2d", Transpose < 0 ? "-" : " ", abs(Transpose));
 		break;
@@ -504,7 +525,7 @@ void SendMidiMessage(int MidiValue)
 	}
 
 	// Monitor MidiValue
-	if (MenuPage == 6) // Was page 4 in the original firmware
+	if (MenuPage == 8)
 		DisplayNumber(MidiValue);
 }
 
@@ -673,6 +694,8 @@ void setup()
 	MidiType = EEPROM.read(EE_LOC_MidiType);
 	MidiChan = EEPROM.read(EE_LOC_MidiChan);
 	MidiWhat = EEPROM.read(EE_LOC_MidiWhat);
+	MidiMin = EEPROM.read(EE_LOC_MidiMin);
+	MidiMax = EEPROM.read(EE_LOC_MidiMax);
 	MidiTxVelocity = EEPROM.read(EE_LOC_Velocity);
 	ConfigureTRS();
 
@@ -681,6 +704,8 @@ void setup()
 	if (MidiType > MidiType_MAX) MidiType = MidiType_MAX;
 	if (MidiChan > 15) MidiChan = 0;
 	if (MidiWhat > 127) MidiWhat = 0;
+	if (MidiMin > 127) MidiMin = 0;
+	if (MidiMax > 127) MidiMax = 127;
 	if (MidiTxVelocity > 1) MidiTxVelocity = 1;
 
 	// Initialize the buttons
@@ -734,7 +759,6 @@ void loop()
 	}
 
 	USB_MIDI.read();
-
 
 	// Read TRS input
 	ReadTRS();
