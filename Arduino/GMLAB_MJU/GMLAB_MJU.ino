@@ -2,7 +2,7 @@
 // GMLAB MJU - Midi Jack USB
 // Basic firmware by Guido Scognamiglio
 // Visit: www.gmlab.it - www.GenuineSoundware.com
-// Last update: Sep 2023
+// Last update: April 2026
 //
 
 // HOW TO USE:
@@ -10,9 +10,6 @@
 // Press the lower button to select value
 // Current status is automatically remembered
 
-
-// Uncomment this line to compile with USB MIDI
-#define USBMIDI 1
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // PIN DEFINITIONS (DO NOT CHANGE!)
@@ -40,11 +37,9 @@
 #include <MIDI.h>
 MIDI_CREATE_DEFAULT_INSTANCE();
 
-// Remember that if this project is compiled with USB MIDI, the Arduino IDE won't be able 
-// to "see" the board during the upload of the sketch until the RESET button is pressed.
-#ifdef USBMIDI
-#include <MIDIUSB.h>
-#endif
+#include <USB-MIDI.h>
+USBMIDI_CREATE_INSTANCE(0, USB_MIDI);
+
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // This library creates a timer with millisecond precision
@@ -492,40 +487,19 @@ void SendMidiMessage(int MidiValue)
 	{
 	case 0: // Send Control Change
 		MIDI.sendControlChange(MidiWhat, MidiValue, MidiChan + 1);
+		USB_MIDI.sendControlChange(MidiWhat, MidiValue, MidiChan + 1);
 		break;
 
 	case 1: // Send Program Change
 		MIDI.sendProgramChange(MidiValue, MidiChan + 1);
+		USB_MIDI.sendProgramChange(MidiValue, MidiChan + 1);
 		break;
 
 	case 2: // Send Note On
 		MIDI.sendNoteOn(MidiWhat, MidiValue, MidiChan + 1);
+		USB_MIDI.sendNoteOn(MidiWhat, MidiValue, MidiChan + 1);
 		break;
 	}
-
-#ifdef USBMIDI
-	midiEventPacket_t Event;
-	switch (MidiType)
-	{
-	case 0: // Send Control Change
-		Event = { 0x0B, 0xB0 | MidiChan, MidiWhat, MidiValue };
-		MidiUSB.sendMIDI(Event);
-		MidiUSB.flush();
-		break;
-
-	case 1: // Send Program Change
-		Event = { 0x0C, 0xC0 | MidiChan, MidiValue, 0 };
-		MidiUSB.sendMIDI(Event);
-		MidiUSB.flush();
-		break;
-
-	case 2: // Send Note On
-		Event = { 0x09, 0x90 | MidiChan, MidiWhat, MidiValue };
-		MidiUSB.sendMIDI(Event);
-		MidiUSB.flush();
-		break;
-	}
-#endif
 
 	// Monitor MidiValue
 	if (MenuPage == 6)
@@ -603,6 +577,9 @@ void setup()
 	// Setup MIDI
 	MIDI.turnThruOn(); // The MIDI input isn't used in this project...
 	MIDI.begin(MIDI_CHANNEL_OMNI);
+
+	USB_MIDI.turnThruOn();
+	USB_MIDI.begin(MIDI_CHANNEL_OMNI);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -610,6 +587,7 @@ void setup()
 void loop()
 {
 	MIDI.read();
+	USB_MIDI.read();
 
 	// Read TRS input
 	ReadTRS();
