@@ -5,7 +5,7 @@
 //
 // Firmware by Guido Scognamiglio
 // Visit: www.gmlab.it
-// Last update: April 2026
+// Last update: October 2026
 //
 
 // HOW TO USE:
@@ -110,6 +110,7 @@ enum JackTypesEnum
 	e_Jack_HalfMoon_Hammond,
 	e_Jack_Sustain_Positive,
 	e_Jack_Sustain_Negative,
+	e_Jack_Sustain_ContinuousKorg,
 
 	e_JackType_MAX // used to wrap selection counter
 };
@@ -117,7 +118,7 @@ enum JackTypesEnum
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Display strings
 const char MenuPages[][4] = { "TRS", "TYP", "CHN", "NUM", "MIN", "MAX", "VEL", "TSP", "MON" };
-const char JackTypes[][4] = { "EP1", "EP2", "HMC", "HMH", "SPP", "SPN" };
+const char JackTypes[][4] = { "EP1", "EP2", "HMC", "HMH", "SPP", "SPN", "SPC" };
 const char MidiTypes[][4] = { " CC", " PC", "NOT" }; // Control Change, Program Change, Note Event
 
 
@@ -244,7 +245,7 @@ void DisplayLoop()
 // Called to cycle through display pages
 void BrowsePage()
 {
-	if (++MenuPage > 6) MenuPage = 0; // Added 2 more pages for the Mojo Scanboard modified firmware
+	if (++MenuPage > 8) MenuPage = 0; // Added 2 more pages for the Mojo Scanboard modified firmware
 	memcpy(DisplayText, MenuPages[MenuPage], 3);
 
 	// Start a timer of 1 second, the page value will be shown when this expires
@@ -371,6 +372,8 @@ void ConfigureTRS()
 
 	case e_Jack_Sustain_Positive:
 	case e_Jack_Sustain_Negative:
+	case e_Jack_Sustain_ContinuousKorg: // Unlike a 3-wire expression pedal, a continuous sustain pedal has just two wires connected between sleeve and tip
+										// (ring is isolated or not present at all), so it needs a pull-up resistor to complete the resistor divider.
 		pinMode(PIN_JACK_T, INPUT_PULLUP);
 		pinMode(PIN_JACK_R, OUTPUT);  digitalWrite(PIN_JACK_R, LOW);    // Set Ring as GND
 		pinMode(PIN_JACK_S, OUTPUT);  digitalWrite(PIN_JACK_S, LOW);    // Set Sleeve as GND
@@ -397,6 +400,45 @@ int ReadADC(int ADC_PIN)
 	return value >> 3;
 }
 
+int ReadSPC()
+{
+	// With a 50 Kohm pedal like the Korg DS-1H the 10-bit reading goes between ~547 (pedal released) to ~35 (pedal fully down)
+	// Let's take 500 and 100 as edge values (range = 400 steps), you can modify these values if your pedal responds differently
+
+	int value = analogRead(A6);
+
+	// Trim values within the acceptable range
+	value -= 100;
+	if (value < 0) value = 0;
+	if (value > 400) value = 400; // 400 = 500-100, max-min
+
+	// Get difference between current and previous value
+	int diff = abs(value - prev_value);
+
+	// Exit this function if the new value is within a narrower deadband because we're reading way less than a 10 bit value
+	if (diff > 2)
+	{
+		// Store new value
+		prev_value = value;
+
+		// Scale to 0 ~ 127 (this used floating point calculation, could have been done with fixed point math!)
+		value = int(0.0025f * (float)value * 127.f); // The constant is 1.f/400.f
+
+		// Reverse value, so pedal released = 0, fully down = 127
+		return 127 - value;
+	}
+	else
+		return PrevMidiValue; // So the value won't be sent
+}
+
+int KeepInRange(int value)
+{
+	auto r1 = MidiMax - MidiMin;
+	auto r2 = r1 * value;
+	auto r3 = r2 / 127;
+	return r3 + MidiMin;
+}
+
 // Called to read the TRS inputs and generate the MIDI event whenever the input has changed status
 void ReadTRS()
 {
@@ -406,12 +448,12 @@ void ReadTRS()
 	{
 		///////////////////////////////////////////////////
 	case e_Jack_ExpPed_WiperOnTip:
-		MidiValue = ReadADC(A6);
+		MidiValue = KeepInRange(ReadADC(A6));
 		break;
 
 		///////////////////////////////////////////////////
 	case e_Jack_ExpPed_WiperOnRing:
-		MidiValue = ReadADC(A7);
+		MidiValue = KeepInRange(ReadADC(A7));
 		break;
 
 		///////////////////////////////////////////////////
@@ -444,6 +486,11 @@ void ReadTRS()
 		///////////////////////////////////////////////////
 	case e_Jack_Sustain_Negative:
 		MidiValue = digitalRead(PIN_JACK_T) ? 0 : 127;
+		break;
+
+		///////////////////////////////////////////////////
+	case e_Jack_Sustain_ContinuousKorg:
+		MidiValue = ReadSPC();
 		break;
 	}
 
